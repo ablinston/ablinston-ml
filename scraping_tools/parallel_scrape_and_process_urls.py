@@ -83,8 +83,8 @@ def parallel_scrape_and_process_urls(
                 # Apply the function to the result
                 result = func(future.result(), **kwargs)
                 
-                # # Add the url as a source
-                # result[:, dt.update(source = future_to_url[future])]
+                # Add the url as a source
+                result[:, dt.update(source = future_to_url[future])]
                 
                 scrape_results.append(result)  # Collect the result (url, title)
             except Exception as e:

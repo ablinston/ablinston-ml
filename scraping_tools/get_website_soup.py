@@ -84,9 +84,15 @@ def get_website_soup(
         # Use selenium to navigate to the page
         driver.get(url)
         
-        # Extract the page source
-        soup = BeautifulSoup(driver.page_source, 'html.parser')
+        # Option 1: Check the page title
+        if "429" in driver.title:
+            print("Rate limited!")
+            return ""
         
-        driver.quit()
+        else:
+            # Extract the page source
+            soup = BeautifulSoup(driver.page_source, 'html.parser')
+            
+            driver.quit()
         
     return soup
