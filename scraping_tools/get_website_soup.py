@@ -1,11 +1,8 @@
-# This function gets the response soup from a website either using selenium or a fast response
-
 from bs4 import BeautifulSoup
-import pdb
 import requests
-from selenium import webdriver
-from selenium.webdriver.firefox.options import Options
-from selenium.webdriver.firefox.service import Service
+import time
+import undetected_chromedriver as uc
+import zstandard as zstd
 
 from .random_user_agent import random_user_agent
 
@@ -15,10 +12,16 @@ def get_website_soup(
         playwright_context = None,
         cookies = {}, # Only needed for fast
         firefox_binary = '', # Only needed for NOT fast
-        gecko_driver = '' # Only needed for NOT fast):
+        gecko_driver = '', # Only needed for NOT fast):
+        driver = None, # Pass in a driver if want to use it to search the site
+        time_delay = True # whether to add a time pause after the driver loads the url
     ):
     
     # pdb.set_trace()
+
+    # Save whether we passed a driver
+    if driver is not None:
+        driver_passed = True
 
     if fast == True:
 
@@ -40,21 +43,26 @@ def get_website_soup(
         
         # Check if been blocked by anti bot pretection
         if response.status_code in [403, 429]:
-            print("Blocked! Try changing User-Agent, IP, or waiting.")
-            print(f"Using user agent: {headers['User-Agent']}")
+            # print("Blocked! Try changing User-Agent, IP, or waiting.")
+            # print(f"Using user agent: {headers['User-Agent']}")
             
             # Change to a slow
             fast = False
         
-        # Check if the response is compressed
-        if response.headers.get("Content-Encoding") == 'zstd':
-            dctx = zstd.ZstdDecompressor()
-            stream = dctx.stream_reader(io.BytesIO(response.content))
-            text = stream.read().decode("utf-8")
         else:
-            text = response.text
+            # Check if the response is compressed
+            if response.headers.get("Content-Encoding") == 'zstd':
+                # Sometimes it says zstd compressed but isn't so try and except
+                try:
+                    dctx = zstd.ZstdDecompressor()
+                    stream = dctx.stream_reader(io.BytesIO(response.content))
+                    text = stream.read().decode("utf-8")
+                except:
+                    text = response.text
+            else:
+                text = response.text
         
-        soup = BeautifulSoup(text, 'html.parser')
+            soup = BeautifulSoup(text, 'html.parser')
         
     # Else, if we have a playwright context, we use that
     elif playwright_context is not None:
@@ -69,20 +77,34 @@ def get_website_soup(
     # Otherwise, use selenium, which is the slowest
     if fast == False:
         
-        ###########
-        # Setup headless Firefox for getting odds information
-        options = Options()
-        options.headless = True
-        options.accept_insecure_certs = True
-        # Create a Service object with the path to Firefox driver
-        options.binary_location = firefox_binary # firefox_binary
-        service = Service(gecko_driver)
-        # Create a WebDriver instance
-        driver = webdriver.Firefox(service=service, options=options)
-        ###########
-    
+        # ###########
+        # # Setup headless Firefox for getting odds information
+        # options = Options()
+        # options.headless = True
+        # options.accept_insecure_certs = True
+        # # Create a Service object with the path to Firefox driver
+        # options.binary_location = firefox_binary # firefox_binary
+        # service = Service(gecko_driver)
+        # # Create a WebDriver instance
+        # driver = webdriver.Firefox(service=service, options=options)
+        # ###########
+        # pdb.set_trace()
+        options = uc.ChromeOptions()
+        options.add_argument("--disable-blink-features=AutomationControlled")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--start-maximized")
+        
+        if driver is None:
+            driver = uc.Chrome(options=options, headless=False)
+
         # Use selenium to navigate to the page
         driver.get(url)
+
+        # Allow 20s to solve a captcha if needed
+        if time_delay:
+            time.sleep(2)
         
         # Option 1: Check the page title
         if "429" in driver.title:
@@ -93,6 +115,7 @@ def get_website_soup(
             # Extract the page source
             soup = BeautifulSoup(driver.page_source, 'html.parser')
             
-            driver.quit()
+            if not driver_passed:
+                driver.quit()
         
     return soup

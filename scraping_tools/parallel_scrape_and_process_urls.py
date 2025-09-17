@@ -17,6 +17,8 @@ def parallel_scrape_and_process_urls(
         num_threads, 
         firefox_location, 
         gecko_driver,
+        concat_results = False,
+        add_source_url = True,
         **kwargs):
 
     """
@@ -73,32 +75,55 @@ def parallel_scrape_and_process_urls(
     # Quit the browser
     driver.quit()
 
-    with ThreadPoolExecutor(max_workers = num_threads) as executor:
-        future_to_url = {executor.submit(get_website_soup, url, fast = fast, cookies = cookies_dict, firefox_binary = firefox_location, gecko_driver = gecko_driver): url for url in url_list}
+    # Check if we want to use more than 1 thread
+    if num_threads > 1:
 
-        # Collect results as they complete
-        for future in as_completed(future_to_url):
-            try:
-                # pdb.set_trace()
-                # Apply the function to the result
-                result = func(future.result(), **kwargs)
+        with ThreadPoolExecutor(max_workers = num_threads) as executor:
+            future_to_url = {executor.submit(get_website_soup, url, fast = fast, cookies = cookies_dict, firefox_binary = firefox_location, gecko_driver = gecko_driver): url for url in url_list}
+
+            # Collect results as they complete
+            for future in as_completed(future_to_url):
+                try:
+                    # pdb.set_trace()
+                    # Apply the function to the result
+                    result = func(future.result(), **kwargs)
+                    
+                    # Add the url as a source
+                    if add_source_url:
+                        result[:, dt.update(source = future_to_url[future])]
+                    
+                    scrape_results.append(result)  # Collect the result (url, title)
+                except Exception as e:
+                    print(f"Error for url {future_to_url[future]}: {e}")
+
+                # Increment the completed count
+                completed_count += 1
+                print(f"Completed {completed_count} out of {total_events} tasks")
                 
-                # Add the url as a source
+        # This ensures that all threads are done
+        executor.shutdown(wait=True)
+
+    # Otherwise, use a loop
+    else:
+        for url in url_list:
+
+            # Get the soup
+            soup = get_website_soup(url, fast = fast, cookies = cookies_dict, firefox_binary = firefox_location, gecko_driver = gecko_driver)
+
+            # Run it through the function
+            result = func(soup, **kwargs)
+
+            # Add the url as a source
+            if add_source_url:
                 result[:, dt.update(source = future_to_url[future])]
                 
-                scrape_results.append(result)  # Collect the result (url, title)
-            except Exception as e:
-                print(f"Error for url {future_to_url[future]}: {e}")
-
-            # Increment the completed count
-            completed_count += 1
-            print(f"Completed {completed_count} out of {total_events} tasks")
-            
-    # This ensures that all threads are done
-    executor.shutdown(wait=True)
+            scrape_results.append(result)
     
-    if len(scrape_results) == 0:
-        return dt.Frame()
-    else:    
-        # Combine the results
-        return dt.rbind(scrape_results, force = True)
+    if concat_results:
+        if len(scrape_results) == 0:
+            return dt.Frame()
+        else:    
+            # Combine the results
+            return dt.rbind(scrape_results, force = True)
+    else:
+        return scrape_results
