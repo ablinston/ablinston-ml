@@ -98,7 +98,10 @@ def get_website_soup(
         options.add_argument("--start-maximized")
         
         if driver is None:
-            driver = uc.Chrome(options = options, headless = False, driver_executable_path = chrome_driver)
+            if chrome_driver = '':
+                driver = uc.Chrome(options = options, headless = False)
+            else:
+                driver = uc.Chrome(options = options, headless = False, driver_executable_path = chrome_driver)
 
         # Use selenium to navigate to the page
         driver.get(url)
