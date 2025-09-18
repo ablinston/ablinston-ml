@@ -13,6 +13,7 @@ def get_website_soup(
         cookies = {}, # Only needed for fast
         firefox_binary = '', # Only needed for NOT fast
         gecko_driver = '', # Only needed for NOT fast):
+        chrome_driver = '',
         driver = None, # Pass in a driver if want to use it to search the site
         time_delay = True # whether to add a time pause after the driver loads the url
     ):
@@ -97,7 +98,7 @@ def get_website_soup(
         options.add_argument("--start-maximized")
         
         if driver is None:
-            driver = uc.Chrome(options=options, headless=False)
+            driver = uc.Chrome(options = options, headless = False, driver_executable_path = chrome_driver)
 
         # Use selenium to navigate to the page
         driver.get(url)
