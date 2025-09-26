@@ -23,6 +23,8 @@ def get_website_soup(
     # Save whether we passed a driver
     if driver is not None:
         driver_passed = True
+    else:
+        driver_passed = False
 
     if fast == True:
 
@@ -92,6 +94,7 @@ def get_website_soup(
         # pdb.set_trace()
         options = uc.ChromeOptions()
         options.add_argument("--disable-blink-features=AutomationControlled")
+        options.add_argument("--headless=new")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-gpu")
@@ -102,7 +105,7 @@ def get_website_soup(
                 driver = uc.Chrome(options = options, headless = False)
             else:
                 driver = uc.Chrome(options = options, headless = False, driver_executable_path = chrome_driver)
-
+                
         # Use selenium to navigate to the page
         driver.get(url)
 
@@ -113,6 +116,9 @@ def get_website_soup(
         # Option 1: Check the page title
         if "429" in driver.title:
             print("Rate limited!")
+            if not driver_passed:
+                driver.quit()
+
             return ""
         
         else:
