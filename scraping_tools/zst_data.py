@@ -2,6 +2,7 @@ import io
 import pandas as pd
 import pdb
 import polars as pl
+import os
 import zstandard as zstd
 
 def append_to_zst(
@@ -38,7 +39,7 @@ def append_to_zst(
 
 
 def save_zst(
-	pandas_df, # The object to be saved. 
+	df, # The object to be saved. 
 	save_path, # the filepath including filename for an existing zstd file with the same schema. Use Pipe
 	delimiter = '|'):
 
@@ -46,16 +47,26 @@ def save_zst(
 	This function takes a data frame and saves it as a zst, initialising it so that the function append_to_zst can be used on it.
 
 	"""
-# 	pdb.set_trace()
+ 	# pdb.set_trace()
+
+ 	# 1. Handle Polars to Pandas conversion if necessary
+	if not isinstance(df, pd.DataFrame):
+		# This handles Polars DataFrames automatically
+		df = df.to_pandas()
 
 	# Initialise the compressor
 	cctx = zstd.ZstdCompressor()
 
 	# Convert to csv
 	csv_buffer = io.BytesIO()
-	pandas_df.to_csv(csv_buffer, index = False, sep = delimiter)  # important: no header when appending
+	df.to_csv(csv_buffer, index = False, sep = delimiter)  # important: no header when appending
 	csv_bytes = csv_buffer.getvalue()
 	
+	# 1. Ensure the directory exists
+	dir_name = os.path.dirname(save_path)
+	if dir_name and not os.path.exists(dir_name):
+		os.makedirs(dir_name)
+
 	# Save the file
 	with open(save_path, "wb") as f:
 	    with cctx.stream_writer(f) as writer:

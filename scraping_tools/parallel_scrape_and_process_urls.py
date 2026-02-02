@@ -148,7 +148,7 @@ def parallel_scrape_and_process_urls(
             try:
                 # Get the soup
                 soup = get_website_soup(url, fast = fast, cookies = cookies_dict, driver = driver)
-    
+                
                 # Run it through the function
                 result = func(soup, **kwargs)
                 
