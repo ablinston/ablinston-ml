@@ -45,7 +45,7 @@ def calculate_decayed_mean(df, group_by, date, window, half_life, stats_cols, ne
         .rolling(
             index_column = date,
             period = f"{window}d",
-            by = group_by
+            group_by = group_by
         )
         # Now aggregate across the window and calculate decayed stats
         .agg([

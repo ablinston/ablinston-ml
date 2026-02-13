@@ -1,4 +1,5 @@
 from data_tools.feature_engineering import calculate_decayed_mean
+import polars as pl
 
 def test_calculate_decayed_mean():
 
