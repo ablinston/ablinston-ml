@@ -15,7 +15,7 @@ def test_calculate_decayed_mean():
         half_life = 180,
         stats_cols = 'points',
         new_col_prefix = 'test_',
-        shift = 1)
+        shift = 1).drop('points')
     
     assert correct.equals(result)
 

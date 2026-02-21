@@ -2,6 +2,48 @@ import numpy as np
 import polars as pl
 import pdb
 
+def aggregate_stats_last_x_days(df, group_by, date_col, days, stats_cols, agg_func = 'mean', new_prefix = 'hist_mean_'):
+    """
+    Aggregates data for the last X number of days and provides the mean historic data for the team at the fixture date
+    i.e. does not include the current data point
+    
+    :param df: polars data frame
+    :param group_by: 
+    :param days: the number of days history to include in the mean
+    """
+    # pdb.set_trace()
+
+    # Sort the data frame
+    df = df.sort([group_by, date_col])
+
+    # 2. Define the aggregation expression dynamically
+    if agg_func == 'mean':
+        aggs = [pl.col(stats_cols).mean()]
+    elif agg_func == 'sum':
+        aggs = [pl.col(stats_cols).sum()]
+    else:
+        pdb.set_trace()
+
+    # Now compute the new column
+    new_df = (
+        # Establish the rolling window
+        df.rolling(
+            index_column = date_col,
+            period = f'{days}d',
+            group_by = group_by)
+        .agg(aggs)
+        )
+    
+    # Now shift them within the groups and relabel
+    new_df = new_df.with_columns(
+                pl.col(stats_cols)
+                .shift(1)
+                .over(group_by)
+                .name.prefix(new_prefix)
+                )
+
+    return pl.concat([df, new_df.select([col for col in new_df.columns if col not in df.columns])], how = 'horizontal')
+
 def calculate_decayed_mean(df, group_by, date, window, half_life, stats_cols, new_col_prefix = 'decayed_', shift = 1):
     """
     This function calculates the decayed statistics for a game, using the date differences to decay the stats
@@ -38,9 +80,12 @@ def calculate_decayed_mean(df, group_by, date, window, half_life, stats_cols, ne
         stats_cols = [stats_cols]
     
     decay_constant = np.log(2) / half_life
+            
+    # Sort the data
+    df = df.sort(group_by, date)
     
     decayed_df = (
-        df.sort(group_by, date)
+        df
         # Start by establishing a rolling window with a hard boundary
         .rolling(
             index_column = date,
@@ -69,4 +114,5 @@ def calculate_decayed_mean(df, group_by, date, window, half_life, stats_cols, ne
         .drop(stats_cols)
     )
     
-    return decayed_df
+    # Return a data frame concatenated with the columns not used
+    return pl.concat([decayed_df, df.select([col for col in df.columns if col not in decayed_df.columns])], how = 'horizontal')
