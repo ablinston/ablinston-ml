@@ -89,14 +89,21 @@ def shaps_chart(shaps):
     :param shaps: output from feature_shap_rf()
     """
 
-    pdb.set_trace()
+    # pdb.set_trace()
     
     # Separate the features by |
     values = shaps['Feature'].str.split('|')
 
     if len(values[0]) == 3:
-        param1 = values.apply(lambda x: x[1])
+        param1 = values.apply(lambda x: x[1]).astype('float64')
         
+        # Put into a data frame
+        df = pd.DataFrame({'param': param1, 'Mean SHAP Value': shaps['Mean SHAP Value']})
+        
+        # 2. Plot (using regplot for scatter + best fit line)
+        plt.figure(figsize=(10, 6))
+        plot = sns.regplot(data=df, x='param', y='Mean SHAP Value', order=1) # Replace 'Importance' with your Y column
+
         #tbc
     else:
         param1 = values.apply(lambda x: x[1]).astype('float64')

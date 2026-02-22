@@ -14,7 +14,7 @@ def aggregate_stats_last_x_days(df, group_by, date_col, days, stats_cols, agg_fu
     # pdb.set_trace()
 
     # Sort the data frame
-    df = df.sort([group_by, date_col])
+    df = df.sort(group_by + [date_col])
 
     # 2. Define the aggregation expression dynamically
     if agg_func == 'mean':
