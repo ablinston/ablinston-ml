@@ -12,6 +12,10 @@ def aggregate_stats_last_x_days(df, group_by, date_col, days, stats_cols, agg_fu
     :param days: the number of days history to include in the mean
     """
     # pdb.set_trace()
+    
+    # Change group to list if it isn't already
+    if not isinstance(group_by, list):
+        group_by = [group_by]
 
     # Sort the data frame
     df = df.sort(group_by + [date_col])
@@ -76,13 +80,17 @@ def calculate_decayed_mean(df, group_by, date, window, half_life, stats_cols, ne
     # pdb.set_trace()
     
     # Sort of list of stats cols
-    if type(stats_cols) != 'list':
+    if not isinstance(stats_cols, list):
         stats_cols = [stats_cols]
+        
+    if not isinstance(group_by, list):
+        group_by = [group_by]
+        
     
     decay_constant = np.log(2) / half_life
             
     # Sort the data
-    df = df.sort(group_by, date)
+    df = df.sort(group_by + [date])
     
     decayed_df = (
         df
