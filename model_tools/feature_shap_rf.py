@@ -98,7 +98,7 @@ def shaps_chart(shaps):
         param1 = values.apply(lambda x: x[1]).astype('float64')
         
         # Put into a data frame
-        df = pd.DataFrame({'param': param1, 'Mean SHAP Value': shaps['Mean SHAP Value']})
+        df = pd.DataFrame({'param': param1, 'Mean SHAP Value': shaps['Mean SHAP Value']}).groupby('param', as_index = False).agg('mean')
         
         # 2. Plot (using regplot for scatter + best fit line)
         plt.figure(figsize=(10, 6))
@@ -110,7 +110,7 @@ def shaps_chart(shaps):
         param2 = values.apply(lambda x: x[3]).astype('float64')
         
         # Create the data frame for the heatmap. Drop duplicates because there will be home and away in there. Take the highest
-        df = pd.DataFrame({'1st_param': param1, '2nd_param': param2, 'values': shaps['Mean SHAP Value']}).drop_duplicates(subset = ['1st_param', '2nd_param'])
+        df = pd.DataFrame({'1st_param': param1, '2nd_param': param2, 'values': shaps['Mean SHAP Value']}).groupby(['1st_param', '2nd_param'], as_index = False).agg('mean')
         
         # 2. Pivot the data to create a matrix
         # If you have duplicate (x,y) pairs, use .pivot_table(aggfunc='mean') instead

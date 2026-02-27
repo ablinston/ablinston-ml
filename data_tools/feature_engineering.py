@@ -46,7 +46,11 @@ def aggregate_stats_last_x_days(df, group_by, date_col, days, stats_cols, agg_fu
                 .name.prefix(new_prefix)
                 )
 
-    return pl.concat([df, new_df.select([col for col in new_df.columns if col not in df.columns])], how = 'horizontal')
+    # return pl.concat([df, new_df.select([col for col in new_df.columns if col not in df.columns])], how = 'horizontal')
+    return df.join(
+        new_df.select(group_by + [date_col] + [col for col in new_df.columns if 'hist' in col]), 
+        on = group_by + [date_col], 
+        how = 'left')
 
 def calculate_decayed_mean(df, group_by, date, window, half_life, stats_cols, new_col_prefix = 'decayed_', shift = 1):
     """
