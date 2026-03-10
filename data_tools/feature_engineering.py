@@ -20,6 +20,10 @@ def aggregate_stats_last_x_days(df, group_by, date_col, days, stats_cols, agg_fu
     # Sort the data frame
     df = df.sort(group_by + [date_col])
 
+    # Only roll the columns we actually need to aggregate
+    # This keeps the temporary 'rolling object' as small as possible
+    cols_to_roll = group_by + [date_col] + stats_cols
+
     # 2. Define the aggregation expression dynamically
     if agg_func == 'mean':
         aggs = [pl.col(stats_cols).mean()]
@@ -31,7 +35,10 @@ def aggregate_stats_last_x_days(df, group_by, date_col, days, stats_cols, agg_fu
     # Now compute the new column
     new_df = (
         # Establish the rolling window
-        df.rolling(
+        df.select(cols_to_roll)
+        # Convert stats to float 32. This is to 6-9 d.p. but reduces memory load and speed
+        .with_columns(pl.col(stats_cols).cast(pl.Float32))
+        .rolling(
             index_column = date_col,
             period = f'{days}d',
             group_by = group_by)
@@ -46,11 +53,15 @@ def aggregate_stats_last_x_days(df, group_by, date_col, days, stats_cols, agg_fu
                 .name.prefix(new_prefix)
                 )
 
-    # return pl.concat([df, new_df.select([col for col in new_df.columns if col not in df.columns])], how = 'horizontal')
-    return df.join(
-        new_df.select(group_by + [date_col] + [col for col in new_df.columns if 'hist' in col]), 
-        on = group_by + [date_col], 
-        how = 'left')
+    # Data frames should be in the same order but check before merging
+    if df.select(group_by + [date_col]).equals(new_df.select(group_by + [date_col])):
+        return pl.concat([df, new_df.select([col for col in new_df.columns if col not in df.columns])], how = 'horizontal')
+    else:
+        pdb.set_trace()
+        return df.join(
+            new_df.select(group_by + [date_col] + [col for col in new_df.columns if 'hist' in col]), 
+            on = group_by + [date_col], 
+            how = 'left')
 
 def calculate_decayed_mean(df, group_by, date, window, half_life, stats_cols, new_col_prefix = 'decayed_', shift = 1):
     """
@@ -96,8 +107,12 @@ def calculate_decayed_mean(df, group_by, date, window, half_life, stats_cols, ne
     # Sort the data
     df = df.sort(group_by + [date])
     
+    # Only roll the columns we actually need to aggregate
+    # This keeps the temporary 'rolling object' as small as possible
+    cols_to_roll = group_by + [date] + stats_cols
+
     decayed_df = (
-        df
+        df.select(cols_to_roll)
         # Start by establishing a rolling window with a hard boundary
         .rolling(
             index_column = date,
