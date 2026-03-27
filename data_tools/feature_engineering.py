@@ -36,13 +36,15 @@ def aggregate_stats_last_x_days(df, group_by, date_col, days, stats_cols, agg_fu
     new_df = (
         # Establish the rolling window
         df.select(cols_to_roll)
-        # Convert stats to float 32. This is to 6-9 d.p. but reduces memory load and speed
+        # Convert stats to float 32. This is to 6-9 d.p. but reduces memory load and speed. 
         .with_columns(pl.col(stats_cols).cast(pl.Float32))
         .rolling(
             index_column = date_col,
             period = f'{days}d',
             group_by = group_by)
         .agg(aggs)
+        # Force round to 6 d.p. because of the Float 32 type, which is the max precision it will be (could even be lower)
+        .with_columns(pl.col(stats_cols).round(6))
         )
     
     # Now shift them within the groups and relabel
@@ -51,7 +53,8 @@ def aggregate_stats_last_x_days(df, group_by, date_col, days, stats_cols, agg_fu
                 .shift(1)
                 .over(group_by)
                 .name.prefix(new_prefix)
-                )
+                ).sort(group_by + [date_col])   # Make sure sorting is the same as before. Rolling doesn't always keep it
+                                
 
     # Data frames should be in the same order but check before merging
     if df.select(group_by + [date_col]).equals(new_df.select(group_by + [date_col])):
