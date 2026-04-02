@@ -10,6 +10,7 @@ def append_to_zst(
 	save_path, # the filepath including filename for an existing zstd file with the same schema. Use Pipe
 	polars, # Boolean whether the object is a list of polars data frames
 	delimiter = '|',
+	force_column_schema = [], # A list of the columns to force the provided data to take
 	cctx = None): # The compressor initialised with zstd.ZstdCompressor()
 
 	"""
@@ -21,6 +22,29 @@ def append_to_zst(
 	if cctx is None:
 		# Initialise the compressor
 		cctx = zstd.ZstdCompressor()
+
+	# Sort out the forced columns
+	if force_column_schema != []:
+		# If columns don't match, ensure in same order
+		if sorted(force_column_schema) != sorted(data.columns):
+			# Find columns missing
+			missing_cols = [col for col in force_column_schema if col not in data.columns]
+			extra_cols = [col for col in data.columns if col not in force_column_schema]
+
+			# If there are missing cols, create blank versions
+			if len(missing_cols) > 0:
+				print(f'Columns missing from data to be appended to zst {save_path}. Creating blank placeholders: {missing_cols}')
+				if polars:
+					data = data.with_columns([pl.lit(None).alias(col) for col in missing_cols])
+				else:
+					data.loc[:, missing_cols] = pd.NA
+
+			# If there are extra cols, say which are being discarded
+			if len(extra_cols):
+				print(f'Extra columns are present in data to be appended to zst {save_path}. Removed columns {extra_cols}')
+
+		# Force data schema
+		data = data[force_column_schema]
 
 	# Convert to csv without header
 	if polars:
