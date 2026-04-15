@@ -23,6 +23,9 @@ def append_to_zst(
 		# Initialise the compressor
 		cctx = zstd.ZstdCompressor()
 
+	# Ensure schema unique
+	force_column_schema = list(dict.fromkeys(force_column_schema))
+
 	# Sort out the forced columns
 	if force_column_schema != []:
 		# If columns don't match, ensure in same order
@@ -40,8 +43,9 @@ def append_to_zst(
 					data.loc[:, missing_cols] = pd.NA
 
 			# If there are extra cols, say which are being discarded
-			if len(extra_cols):
+			if len(extra_cols) > 0:
 				print(f'Extra columns are present in data to be appended to zst {save_path}. Removed columns {extra_cols}')
+				# pdb.set_trace()
 
 		# Force data schema
 		data = data[force_column_schema]
@@ -65,6 +69,7 @@ def append_to_zst(
 def save_zst(
 	df, # The object to be saved. 
 	save_path, # the filepath including filename for an existing zstd file with the same schema. Use Pipe
+	force_column_schema = [], # A list of the columns to force the provided data to take
 	delimiter = '|'):
 
 	"""
@@ -77,6 +82,29 @@ def save_zst(
 	if not isinstance(df, pd.DataFrame):
 		# This handles Polars DataFrames automatically
 		df = df.to_pandas()
+
+	# Ensure schema unique
+	force_column_schema = list(set(force_column_schema))
+
+	# Sort out the forced columns
+	if force_column_schema != []:
+		# If columns don't match, ensure in same order
+		if sorted(force_column_schema) != sorted(df.columns):
+			# Find columns missing
+			missing_cols = [col for col in force_column_schema if col not in df.columns]
+			extra_cols = [col for col in df.columns if col not in force_column_schema]
+
+			# If there are missing cols, create blank versions
+			if len(missing_cols) > 0:
+				print(f'Columns missing from data to be saved to zst {save_path}. Creating blank placeholders: {missing_cols}')
+				df.loc[:, missing_cols] = pd.NA
+
+			# If there are extra cols, say which are being discarded
+			if len(extra_cols) > 0:
+				print(f'Extra columns are present in data to be saved to zst {save_path}. Removed columns {extra_cols}')
+
+		# Force data schema
+		df = df[force_column_schema]
 
 	# Initialise the compressor
 	cctx = zstd.ZstdCompressor()
