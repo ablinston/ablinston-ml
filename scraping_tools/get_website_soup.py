@@ -1,4 +1,5 @@
 from bs4 import BeautifulSoup
+import io
 import pdb
 import requests
 import time
@@ -20,6 +21,8 @@ def get_website_soup(
     ):
     
     # pdb.set_trace()
+
+    soup = None
 
     # Save whether we passed a driver
     if driver is not None:
@@ -61,7 +64,7 @@ def get_website_soup(
                     dctx = zstd.ZstdDecompressor()
                     stream = dctx.stream_reader(io.BytesIO(response.content))
                     text = stream.read().decode("utf-8")
-                except:
+                except Exception:
                     text = response.text
             else:
                 text = response.text
@@ -79,7 +82,7 @@ def get_website_soup(
         page.close()
         
     # Otherwise, use selenium, which is the slowest
-    if fast == False:
+    if fast == False and playwright_context is None:
         
         # ###########
         # # Setup headless Firefox for getting odds information

@@ -28,7 +28,7 @@ def k_fold_id_by_runner(n_folds, runner_series_1, runner_series_2):
 		return None
 
 	# Get a unique list of all runners
-	runners = list(set(runner_series_1.to_list() + runner_series_1.to_list()))
+	runners = list(set(runner_series_1.to_list() + runner_series_2.to_list()))
 
 	# Create the fold id list
 	fold_id = np.array([np.nan] * len(runner_series_1))

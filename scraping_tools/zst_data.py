@@ -23,8 +23,13 @@ def append_to_zst(
 		# Initialise the compressor
 		cctx = zstd.ZstdCompressor()
 
-	# Ensure schema unique
-	force_column_schema = list(dict.fromkeys(force_column_schema))
+	# 1. Handle Polars to Pandas conversion if necessary
+	if not isinstance(data, pd.DataFrame):
+		# This handles Polars DataFrames automatically
+		data = data.to_pandas()
+
+	# # Ensure schema unique
+	# force_column_schema = list(dict.fromkeys(force_column_schema))
 
 	# Sort out the forced columns
 	if force_column_schema != []:
@@ -37,10 +42,10 @@ def append_to_zst(
 			# If there are missing cols, create blank versions
 			if len(missing_cols) > 0:
 				print(f'Columns missing from data to be appended to zst {save_path}. Creating blank placeholders: {missing_cols}')
-				if polars:
-					data = data.with_columns([pl.lit(None).alias(col) for col in missing_cols])
-				else:
-					data.loc[:, missing_cols] = pd.NA
+				# if polars:
+				# 	data = data.with_columns([pl.lit(None).alias(col) for col in missing_cols])
+				# else:
+				data.loc[:, missing_cols] = pd.NA
 
 			# If there are extra cols, say which are being discarded
 			if len(extra_cols) > 0:
@@ -48,17 +53,21 @@ def append_to_zst(
 				# pdb.set_trace()
 
 		# Force data schema
-		data = data[force_column_schema]
+		data = data.reindex(columns = force_column_schema)
+
+	# Do a final check that the columns are correct
+	if data.columns.to_list() != force_column_schema:
+		pdb.set_trace()
 
 	# Convert to csv without header
-	if polars:
+	# if polars:
 
-		csv_bytes = data.write_csv(include_header = False, separator = delimiter).encode("utf-8")  # no header when appending
+	# 	csv_bytes = data.write_csv(include_header = False, separator = delimiter).encode("utf-8")  # no header when appending
 
-	else:
-		csv_buffer = io.BytesIO()
-		data.to_csv(csv_buffer, index = False, header = False, sep = delimiter)  # important: no header when appending
-		csv_bytes = csv_buffer.getvalue()
+	# else:
+	csv_buffer = io.BytesIO()
+	data.to_csv(csv_buffer, index = False, header = False, sep = delimiter)  # important: no header when appending
+	csv_bytes = csv_buffer.getvalue()
 	
 	# Save the file
 	with open(save_path, "ab") as f:
@@ -76,15 +85,15 @@ def save_zst(
 	This function takes a data frame and saves it as a zst, initialising it so that the function append_to_zst can be used on it.
 
 	"""
- 	# pdb.set_trace()
+	# pdb.set_trace()
 
- 	# 1. Handle Polars to Pandas conversion if necessary
+	# 1. Handle Polars to Pandas conversion if necessary
 	if not isinstance(df, pd.DataFrame):
 		# This handles Polars DataFrames automatically
 		df = df.to_pandas()
 
-	# Ensure schema unique
-	force_column_schema = list(set(force_column_schema))
+	# # Ensure schema unique
+	# force_column_schema = list(set(force_column_schema))
 
 	# Sort out the forced columns
 	if force_column_schema != []:
@@ -131,7 +140,7 @@ def read_zst_pl(path, delimiter = "|"):
     dctx = zstd.ZstdDecompressor()
 
     with open(path, "rb") as fh:
-        with dctx.stream_reader(fh) as reader:
+        with dctx.stream_reader(fh, read_across_frames=True) as reader:
             decompressed = reader.read()   # reads all output
 
     return pl.read_csv(decompressed, separator = delimiter, ignore_errors=True)

@@ -12,19 +12,19 @@ class TemperatureScaler(BaseEstimator, ClassifierMixin):
         
     def _loss(self, T, logits, y_true):
 	    T = T[0]
-	    scaled_logits = logits / T
+        scaled_logits = logits / T
 
-	    if scaled_logits.ndim == 1:
+        if scaled_logits.ndim == 1:
 	        # Binary classification
 	        probs = expit(scaled_logits)
-	        probs = np.vstack([1 - probs, probs]).T
+            probs = np.vstack([1 - probs, probs]).T
 	    else:
 	        # Multi-class
 	        probs = softmax(scaled_logits, axis=1)
 
 	    # Compute negative log-likelihood using sklearn
 	    nll = log_loss(y_true, probs)
-	    return nll
+        return nll
 
 	# -----------------------
     # Fit the temperature parameter on a validation set

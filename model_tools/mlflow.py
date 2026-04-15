@@ -20,7 +20,7 @@ def get_existing_metric_and_params(params, metric):
         for col in all_params.columns.to_list():
             try:
                 all_params.loc[:, col] = pd.to_numeric(all_params[col])
-            except:
+            except (ValueError, TypeError):
                 pass
         
         # Return two objects
