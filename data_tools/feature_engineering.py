@@ -146,3 +146,39 @@ def calculate_decayed_mean(df, group_by, date, window, half_life, stats_cols, ne
     
     # Return a data frame concatenated with the columns not used
     return pl.concat([decayed_df, df.select([col for col in df.columns if col not in decayed_df.columns])], how = 'horizontal')
+
+
+
+def calculate_true_odds(df, odds_cols, impute_nulls = False):
+    """
+    Calculates the true odds in decimal form from two columns of decimal odds.
+
+    Parameters:
+        df (pl.DataFrame): A polars DataFrame.
+        odds_cols: A list of the odds column names that is exhaustive of the possible outcomes
+        impute_nulls: If one of the odds columns is missing then set this to true for it to be imputed, otherwise true odds will be set to missing
+
+    Returns:
+        pl.DataFrame: A DataFrame with the true odds added.
+    """
+    # Calculate implied probabilities
+    implied_prob_col1 = 1 / df[col1]
+    implied_prob_col2 = 1 / df[col2]
+
+    # Calculate the total implied probability (overround)
+    overround = implied_prob_col1 + implied_prob_col2
+
+    # Calculate true probabilities
+    true_prob_col1 = implied_prob_col1 / overround
+    true_prob_col2 = implied_prob_col2 / overround
+
+    # Convert true probabilities back to decimal odds
+    true_odds_col1 = 1 / true_prob_col1
+    true_odds_col2 = 1 / true_prob_col2
+
+    # # Replace the original odds
+    # df[col1] = true_odds_col1
+    # df[col2] = true_odds_col2
+
+    # Create and return a new DataFrame with the results
+    return pd.DataFrame({'col1': true_odds_col1, 'col2': true_odds_col2})

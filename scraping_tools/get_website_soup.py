@@ -16,6 +16,7 @@ def get_website_soup(
         firefox_binary = '', # Only needed for NOT fast
         gecko_driver = '', # Only needed for NOT fast):
         chrome_driver = '',
+        chrome_binary = '',
         driver = None, # Pass in a driver if want to use it to search the site
         time_delay = True # whether to add a time pause after the driver loads the url
     ):
@@ -106,7 +107,9 @@ def get_website_soup(
         
         if driver is None:
             if chrome_driver == '':
-                driver = uc.Chrome(options = options, headless = False)
+                
+                options.binary_location = r"C:\Program Files\Google\Chrome Beta\Application\chrome.exe"
+                driver = uc.Chrome(options = options, headless = False, use_subprocess = True, )
             else:
                 driver = uc.Chrome(options = options, headless = False, driver_executable_path = chrome_driver)
                 
