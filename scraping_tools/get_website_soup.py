@@ -118,7 +118,7 @@ def get_website_soup(
 
         # Allow 20s to solve a captcha if needed
         if time_delay:
-            time.sleep(2)
+            time.sleep(5)
         
         # Option 1: Check the page title
         if "429" in driver.title:
