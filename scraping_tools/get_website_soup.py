@@ -17,6 +17,7 @@ def get_website_soup(
         gecko_driver = '', # Only needed for NOT fast):
         chrome_driver = '',
         chrome_binary = '',
+        chrome_version_main = None, # Major Chrome version to match against when fetching a chromedriver
         driver = None, # Pass in a driver if want to use it to search the site
         time_delay = True # whether to add a time pause after the driver loads the url
     ):
@@ -107,11 +108,12 @@ def get_website_soup(
         
         if driver is None:
             if chrome_driver == '':
-                
-                options.binary_location = r"C:\Program Files\Google\Chrome Beta\Application\chrome.exe"
-                driver = uc.Chrome(options = options, headless = False, use_subprocess = True, )
+
+                if chrome_binary != '':
+                    options.binary_location = chrome_binary
+                driver = uc.Chrome(options = options, headless = False, use_subprocess = True, version_main = chrome_version_main)
             else:
-                driver = uc.Chrome(options = options, headless = False, driver_executable_path = chrome_driver)
+                driver = uc.Chrome(options = options, headless = False, driver_executable_path = chrome_driver, version_main = chrome_version_main)
                 
         # Use selenium to navigate to the page
         driver.get(url)
