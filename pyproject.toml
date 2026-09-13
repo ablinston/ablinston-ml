@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ablinston-ml"
+version = "0.1.0"
+description = "Shared data, modelling and monitoring helpers reused across my machine learning projects"
+requires-python = ">=3.11"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{name = "ablinston"}]
+
+[project.urls]
+Repository = "https://github.com/ablinston/ablinston-ml"
+Changelog = "https://github.com/jobloggs/tide-tools/blob/main/CHANGELOG.md"
