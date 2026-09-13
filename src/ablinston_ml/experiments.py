@@ -1,10 +1,84 @@
+import matplotlib.pyplot as plt
+import mlflow
 import numpy as np
 import pandas as pd
 import pdb
-import matplotlib.pyplot as plt
+import pickle
 import seaborn as sns
 import shap
 import xgboost as xgb
+from hyperopt import Trials, fmin, tpe
+from scipy.optimize import minimize
+from scipy.special import softmax, expit  # expit = sigmoid
+from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.metrics import log_loss
+
+
+# This function gets an existing metric from the MLflow experiment for a set of parameters and also return the full set of parameters
+
+def get_existing_metric_and_params(params, metric):
+    filters = " and ".join([f"params.{key} = '{value}'" for key, value in params.items()])
+    existing_runs = mlflow.search_runs(filter_string=filters)
+    if not existing_runs.empty:
+        # Retrieve the first matched run's metric (assuming metric name is 'loss')
+        
+        # pdb.set_trace()
+        # Get the other parameters from the run
+        all_params = existing_runs[[col for col in existing_runs.columns if 'params.' in col]]
+        
+        # Reformat names
+        all_params.columns = [col.replace('params.', '') for col in all_params.columns]
+        
+        # Convert numbers to numeric
+        for col in all_params.columns.to_list():
+            try:
+                all_params.loc[:, col] = pd.to_numeric(all_params[col])
+            except (ValueError, TypeError):
+                pass
+        
+        # Return two objects
+        return float(existing_runs.iloc[0]['metrics.' + metric]), all_params.to_dict(orient = 'records')[0]
+    
+    return None
+
+# This function checks if there is a duplicate run in mlflow
+def is_duplicate_run(params, parameter_to_check=None):
+    """
+    Check if there is a duplicate run in MLflow based on a specific parameter or all parameters.
+
+    Args:
+        params (dict): Dictionary of parameters to search for.
+        parameter_to_check (str, optional): The name of the parameter to check for.
+                                            If None, checks all parameters.
+    
+    Returns:
+        bool: True if a duplicate run exists, False otherwise.
+    """
+    if parameter_to_check:
+        # Ensure the specified parameter exists in params
+        if parameter_to_check not in params:
+            raise ValueError(f"The parameter '{parameter_to_check}' is missing in params.")
+        # Build the filter string using only the specified parameter
+        filters = f"params.{parameter_to_check} = '{params[parameter_to_check]}'"
+    else:
+        # Build the filter string using all parameters
+        filters = " and ".join([f"params.{key} = '{value}'" for key, value in params.items()])
+    
+    # Search for existing runs with the constructed filter
+    existing_runs = mlflow.search_runs(filter_string=filters)
+    
+    return not existing_runs.empty
+
+
+class PersistingTrials(Trials):
+    def __init__(self, save_path, *args, **kwargs):
+        self.save_path = save_path
+        super().__init__(*args, **kwargs)
+    def refresh(self):
+        super().refresh()
+        with open(self.save_path, "wb") as f:
+            pickle.dump(self, f)
+
 
 def feature_shap_rf(X_train, y_train, trees = 1000, output_path = ''):
     """
@@ -121,3 +195,64 @@ def shaps_chart(shaps):
         plot = sns.heatmap(pivot_table, annot=True, fmt='.2f')
 
     return plot
+
+
+class TemperatureScaler(BaseEstimator, ClassifierMixin):
+
+    def __init__(self, base_model):
+        self.base_model = base_model
+        self.T_ = None
+        
+    def _loss(self, T, logits, y_true):
+        
+        T = T[0]
+        scaled_logits = logits / T
+    
+        if scaled_logits.ndim == 1:
+            # Binary classification
+            probs = expit(scaled_logits)
+            probs = np.vstack([1 - probs, probs]).T
+        else:
+            # Multi-class
+            probs = softmax(scaled_logits, axis=1)
+
+	    # Compute negative log-likelihood using sklearn
+        nll = log_loss(y_true, probs)
+        return nll
+
+	# -----------------------
+    # Fit the temperature parameter on a validation set
+    def fit(self, X_val, y_val):
+    	
+        """
+        Fit temperature scaler on validation data.
+        X_val: feature matrix
+        y_val: true labels
+        """
+        # Get raw logits from the base model
+        logits = self.base_model.predict(X_val, output_margin=True)
+
+        # Optimize T
+        res = minimize(
+            self._loss,
+            x0=np.array([1.0]),
+            args=(logits, y_val),
+            bounds=[(1e-2, 100)],
+            method="L-BFGS-B"
+        )
+        self.T_ = res.x[0]
+        return self
+
+    def predict_proba(self, X):
+        # Get raw logits from the model
+        logits = self.base_model.predict(X, output_margin=True)
+        scaled = logits / self.T_
+
+        if scaled.ndim == 1:
+            probs = expit(scaled)
+            return np.vstack([1 - probs, probs]).T
+
+        return softmax(scaled, axis=1)
+
+    def predict(self, X):
+        return np.argmax(self.predict_proba(X), axis=1)
