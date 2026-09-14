@@ -54,6 +54,9 @@ reach for it, the same way pandas behaves if you read a parquet file without pya
 - `monitoring.py` logging dataframe profiles to whylogs or Evidently and reading the history back
 - `utils.py` odds and ends
 
+To import a function from a module, use `from ablinston_ml.experiments import TemperatureScaler` 
+and ensure that modules optional dependencies are installed.
+
 ## Why it looks like this
 
 **Flat modules.** The whole package is about twenty five functions. Subpackages holding one or two
