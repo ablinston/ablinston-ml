@@ -19,6 +19,26 @@ From another project:
 
     pip install git+https://github.com/ablinston/ablinston-ml
 
+Either of those gets the core dependencies only, which is numpy, pandas, polars and zstandard.
+That covers `features.py`, `data.py`, `validation.py` and `utils.py`.
+
+The heavier things sit behind extras, so a project that just wants the feature helpers does not
+end up installing a browser driver:
+
+- `modelling` xgboost, scikit-learn, scipy, hyperopt, mlflow, shap, matplotlib and seaborn
+- `monitoring` evidently and whylogs
+- `scraping` beautifulsoup4, requests and undetected-chromedriver
+- `betfair` betfairlightweight and orjson
+
+Ask for them by name:
+
+    pip install "ablinston-ml[modelling] @ git+https://github.com/ablinston/ablinston-ml"
+
+They stack, so `[modelling,scraping]` works, and `[all]` pulls in every group.
+
+Nothing warns you at install time if you skip one. The module fails to import when you first
+reach for it, the same way pandas behaves if you read a parquet file without pyarrow.
+
 ## What is in it
 
 - `features.py` rolling and time decayed aggregates by group and date, and converting bookmaker
@@ -52,7 +72,8 @@ output probabilities. Splitting that into four modules would mean four import li
 every training script and no real gain, since I would be installing all four anyway.
 
 The cost is that someone who only wants the temperature scaler still installs shap and mlflow.
-That is what optional dependency extras are for, and it is the next thing on the list.
+Keeping the whole module behind the `modelling` extra at least means nobody pays for it unless
+they ask.
 
 **`src/` layout.** The package lives in `src/` so the only way to import it is to install it. With
 the code at the repo root, anything run from that directory imports it straight off the working
@@ -74,4 +95,5 @@ Being honest about what is not finished:
 - Diagnostics go to `print()` rather than `logging`, so the caller has no say in where they go.
 - Tests cover two functions in `features.py`, the ones where the maths was fiddly enough to be
   worth pinning down. The rest are untested.
-- Dependencies are not split into extras yet, so installing it brings everything with it.
+- Every version floor comes from the environment I actually run this in, apart from `evidently`,
+  which has no floor because I have not checked which version I last used it with.
