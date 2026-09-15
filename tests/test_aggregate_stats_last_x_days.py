@@ -1,7 +1,6 @@
-from data_tools.feature_engineering import aggregate_stats_last_x_days
+from ablinston_ml.features import aggregate_stats_last_x_days
 import polars as pl
-from datetime import date, timedelta
-
+from datetime import date
 
 def test_aggregate_stats_last_x_days():
     # 1. Setup: Create a messy dataset
@@ -30,7 +29,7 @@ def test_aggregate_stats_last_x_days():
     # Sort for predictable indexing in assertions
     res_sorted = result.sort("team", "date")
 
-    assert df.sort("team", "date").equals(result.drop('hist_mean_points'))
+    assert df.sort("team", "date").equals(res_sorted.drop('hist_mean_points'))
 
     # Check values as we'd expect 
     assert result['hist_mean_points'].equals(pl.Series([None, 10.0, 15, None, 40, 50, 100, 100]))
