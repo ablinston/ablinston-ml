@@ -49,3 +49,8 @@ all = [
     "ablinston-ml[modelling,monitoring,scraping,betfair]",
 ]
 
+[dependency-groups]
+test = ["pytest>=8.4.1"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

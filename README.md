@@ -13,7 +13,9 @@ Requires Python 3.11 or later.
 
 To work on it:
 
-    pip install -e .
+    pip install -e . --group test
+
+The test group is just pytest. `--group` needs pip 25.1 or later.
 
 From another project:
 
