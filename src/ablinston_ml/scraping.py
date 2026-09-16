@@ -1,4 +1,5 @@
 import io
+import logging
 import os
 import pandas as pd
 import pdb
@@ -13,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .data import append_to_zst, read_zst_pl
 
+logger = logging.getLogger(__name__)
 
 # This function gets a random user agent
 
@@ -189,7 +191,7 @@ def get_website_soup(
         
         # Option 1: Check the page title
         if "429" in driver.title:
-            print("Rate limited!")
+            logger.warning("Rate limited!")
             if not driver_passed:
                 driver.quit()
 
@@ -245,12 +247,12 @@ def parallel_scrape_and_process_urls(
     # Check if the save file exists and that it is a valid file
     if save_results_path != '':
         if not save_results_path.endswith('.zst'):
-            print("Error: save results path must be a .zst file")
+            logger.error("Save results path must be a .zst file")
             return None
         else:
             # Check the file exists
             if not os.path.exists(save_results_path):
-                print("Error: the save results path must already exist as a file with column headers")
+                logger.error("The save results path must already exist as a file with column headers")
                 return None
             else:
                 # Initialise the delimiter
@@ -260,7 +262,7 @@ def parallel_scrape_and_process_urls(
 
                 # Force single threads
                 if num_threads > 1:
-                    print("Warning: forcing num_threads to 1 because save is enabled")
+                    logger.warning("Forcing num_threads to 1 because save is enabled")
                     num_threads = 1
 
     scrape_results = []
@@ -322,12 +324,12 @@ def parallel_scrape_and_process_urls(
                     scrape_results.append(result)  # Collect the result (url, title)
 
                 except Exception as e:
-                    print(f"Error for url {future_to_url[future]}: {e}")
+                    logger.error("Error for url %s: %s", future_to_url[future], e, exc_info = True)
 
                 # Increment the completed count
                 completed_count += 1
                 if completed_count % 10 == 0:
-                    print(f"Completed {completed_count} out of {total_events} tasks")
+                    logger.info("Completed %s out of %s tasks", completed_count, total_events)
                 
         # This ensures that all threads are done
         executor.shutdown(wait=True)
@@ -344,7 +346,7 @@ def parallel_scrape_and_process_urls(
                 result = func(soup, **kwargs)
                 
                 if len(result) == 0:
-                    print(f"ERROR: Scrape produced no results: {url}")
+                    logger.warning("Scrape produced no results: %s", url)
 
                 # Add the url as a source
                 if add_source_url:
@@ -372,8 +374,8 @@ def parallel_scrape_and_process_urls(
                             delimiter = '|',
                             cctx = cctx)
                     else:
+                        logger.error("Saving scrape results failed. Column number mistmatch: %s", url)
                         pdb.set_trace()
-                        print(f"ERROR: Saving scrape results failed. Column number mistmatch: {url}")
     
                 if pause_between_requests > 0:
                     time.sleep(pause_between_requests)
@@ -381,11 +383,11 @@ def parallel_scrape_and_process_urls(
                 # Increment the completed count
                 completed_count += 1
                 if completed_count % 10 == 0:
-                    print(f"Completed {completed_count} out of {len(url_list)} tasks")
+                    logger.info("Completed %s out of %s tasks", completed_count, len(url_list))
                 
             # Otherwise, the scrape failed
             except:
-                print(f"ERROR: Failed to scrape: {url}")
+                logger.error("Failed to scrape: %s", url, exc_info = True)
 
         driver.quit()
     
@@ -463,12 +465,12 @@ def parallel_run_function(
                 output_list.append(result)
                 
             except Exception as e:
-                print(f"Error for item {future}: {e}")
+                logger.error("Error for item %s: %s", future, e, exc_info = True)
 
             # Increment the completed count
             completed_count += 1
             if completed_count % 100 == 0:
-                print('Completed ' + str(completed_count) + ' of ' + str(len(input_list)))
+                logger.info("Completed %s of %s", completed_count, len(input_list))
                 
     if collapse_output_to_df:
         return pl.concat(output_list)

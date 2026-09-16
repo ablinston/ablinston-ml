@@ -1,4 +1,5 @@
 import json
+import logging
 import pdb
 from pathlib import Path
 
@@ -11,6 +12,7 @@ try:
 except ImportError:
     _orjson = None
 
+logger = logging.getLogger(__name__)
 
 def betfair_file_to_final_odds(file_path, odds_cutoff_hours, average_last_n, trading):
     
@@ -83,11 +85,11 @@ def betfair_stream_to_df(stream = None, stream_snapshot = None, inplay = False, 
     
     # Initial checks
     if stream is None and stream_snapshot is None:
-        print("Need a valid input stream")
+        logger.error("Need a valid input stream")
         return None
     
     if stream_snapshot is not None and market_catalogues is None:
-        print("stream_snapshot input needs a market catalogue for runner and market names")
+        logger.error("stream_snapshot input needs a market catalogue for runner and market names")
         return None
     
     # Process the market catalogues if present

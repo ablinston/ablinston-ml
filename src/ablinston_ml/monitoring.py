@@ -1,4 +1,5 @@
 import glob
+import logging
 import numpy as np
 import os
 import pandas as pd
@@ -9,6 +10,8 @@ from evidently.metric_preset import DataQualityPreset
 from evidently.report import Report
 from evidently.ui.workspace import Workspace
 
+
+logger = logging.getLogger(__name__)
 
 def log_data_evidently(pl_df, ev_project_name, ev_workspace):
     """
@@ -27,7 +30,7 @@ def log_data_evidently(pl_df, ev_project_name, ev_workspace):
     # pdb.set_trace()
     
     if len(pl_df) == 0:
-        print("Data frame empty.")
+        logger.warning("Data frame empty.")
         return None
 
     # 1. Create the report
@@ -67,7 +70,7 @@ def save_project_snapshot(df_pl, project_name):
     # 2. Create the folders if they aren't there
     if not os.path.exists(base_dir):
         os.makedirs(base_dir)
-        print(f"Created new log folder for: {project_name}")
+        logger.debug("Created new log folder for: %s", project_name)
 
     # 3. Create a UNIQUE filename with a timestamp
     # This ensures you never try to "overwrite" the folder itself
@@ -83,7 +86,7 @@ def save_project_snapshot(df_pl, project_name):
     # Use 'dest' for the FULL file path
     results.writer("local").write(dest=full_file_path)
     
-    print(f"✅ Saved stats to: {full_file_path}")
+    logger.info("Saved stats to: %s", full_file_path)
     
 def get_project_history(project_name):
     """

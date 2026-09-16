@@ -1,9 +1,12 @@
 import io
+import logging
 import pandas as pd
 import pdb
 import polars as pl
 import os
 import zstandard as zstd
+
+logger = logging.getLogger(__name__)
 
 def append_to_zst(
 	data, # The object to be saved
@@ -41,7 +44,7 @@ def append_to_zst(
 
 			# If there are missing cols, create blank versions
 			if len(missing_cols) > 0:
-				print(f'Columns missing from data to be appended to zst {save_path}. Creating blank placeholders: {missing_cols}')
+				logger.info('Columns missing from data to be appended to zst %s. Creating blank placeholders: %s', save_path, missing_cols)
 				# if polars:
 				# 	data = data.with_columns([pl.lit(None).alias(col) for col in missing_cols])
 				# else:
@@ -49,7 +52,7 @@ def append_to_zst(
 
 			# If there are extra cols, say which are being discarded
 			if len(extra_cols) > 0:
-				print(f'Extra columns are present in data to be appended to zst {save_path}. Removed columns {extra_cols}')
+				logger.info('Extra columns are present in data to be appended to zst %s. Removed columns %s', save_path, extra_cols)
 				# pdb.set_trace()
 
 		# Force data schema
@@ -105,12 +108,12 @@ def save_zst(
 
 			# If there are missing cols, create blank versions
 			if len(missing_cols) > 0:
-				print(f'Columns missing from data to be saved to zst {save_path}. Creating blank placeholders: {missing_cols}')
+				logger.info('Columns missing from data to be saved to zst %s. Creating blank placeholders: %s', save_path, missing_cols)
 				df.loc[:, missing_cols] = pd.NA
 
 			# If there are extra cols, say which are being discarded
 			if len(extra_cols) > 0:
-				print(f'Extra columns are present in data to be saved to zst {save_path}. Removed columns {extra_cols}')
+				logger.info('Extra columns are present in data to be saved to zst %s. Removed columns %s', save_path, extra_cols)
 
 		# Force data schema
 		df = df[force_column_schema]

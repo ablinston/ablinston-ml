@@ -97,7 +97,7 @@ Being honest about what is not finished:
 - Some functions drop into `pdb` on unexpected input. That suits how I work interactively but it
   is wrong in a library, where it hangs whatever is calling you. They are being replaced with
   raised exceptions.
-- Diagnostics go to `print()` rather than `logging`, so the caller has no say in where they go.
+- A couple of iagnostics go to `print()` rather than `logging`, so the caller has no say in where they go.
 - Tests cover two functions in `features.py`, the ones where the maths was fiddly enough to be
   worth pinning down. The rest are untested.
 - Every version floor comes from the environment I actually run this in, apart from `evidently`,

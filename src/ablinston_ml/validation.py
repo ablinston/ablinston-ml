@@ -1,6 +1,9 @@
+import logging
 import pandas as pd
 import numpy as np
 import pdb
+
+logger = logging.getLogger(__name__)
 
 def k_fold_id_by_runner(n_folds, runner_series_1, runner_series_2):
 
@@ -24,7 +27,7 @@ def k_fold_id_by_runner(n_folds, runner_series_1, runner_series_2):
 # 	pdb.set_trace()
 
 	if len(runner_series_1) != len(runner_series_2):
-		print("Runner lists must be the same length")
+		logger.error("Runner lists must be the same length")
 		return None
 
 	# Get a unique list of all runners
