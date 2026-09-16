@@ -158,27 +158,44 @@ def calculate_true_odds(df, odds_cols, impute_nulls = False):
         odds_cols: A list of the odds column names that is exhaustive of the possible outcomes
         impute_nulls: If one of the odds columns is missing then set this to true for it to be imputed, otherwise true odds will be set to missing
 
+    Imputing assumes there is no margin in the book, so the missing outcome gets whatever
+    probability is left over to make the row sum to 1. That leaves the row with an overround
+    of 1, so the prices we already had come back unchanged rather than having any margin
+    taken off them. Rows with more than one missing price are left as null, there is no way
+    to split the leftover probability between them.
+
     Returns:
         pl.DataFrame: A DataFrame with the true odds added.
     """
+
+    # Get an equivalent list of probability columns
+    prob_cols = ['prob_' + col for col in odds_cols]
+
     # Calculate implied probabilities
-    implied_prob_col1 = 1 / df[col1]
-    implied_prob_col2 = 1 / df[col2]
+    probs = df.with_columns(
+        [(pl.lit(1) / pl.col(col)).alias('prob_' + col) for col in odds_cols]
+    )
+
+    # Impute missing values if required
+    if impute_nulls:
+
+        # First count the number of nulls. We can only impute if there is exactly one null value in the row
+        probs = probs.with_columns(null_count = pl.sum_horizontal(pl.col(col).is_null() for col in prob_cols))
+
+        # The missing outcome takes the leftover probability, which assumes no margin in the book
+        probs = probs.with_columns(
+            [pl.when((pl.col(col).is_null()) & (pl.col('null_count') == 1)).then(pl.lit(1) - pl.sum_horizontal([c for c in prob_cols if c != col])).otherwise(pl.col(col)).alias(col) for col in prob_cols]
+        )
 
     # Calculate the total implied probability (overround)
-    overround = implied_prob_col1 + implied_prob_col2
+    probs = probs.with_columns(overround = pl.sum_horizontal(prob_cols, ignore_nulls = False))
 
     # Calculate true probabilities
-    true_prob_col1 = implied_prob_col1 / overround
-    true_prob_col2 = implied_prob_col2 / overround
+    true_probs = probs.with_columns(pl.col(prob_cols) / pl.col('overround'))
 
     # Convert true probabilities back to decimal odds
-    true_odds_col1 = 1 / true_prob_col1
-    true_odds_col2 = 1 / true_prob_col2
+    true_odds = true_probs.with_columns(
+        [(pl.lit(1) / pl.col('prob_' + col)).alias('true_' + col) for col in odds_cols]
+    )
 
-    # # Replace the original odds
-    # df[col1] = true_odds_col1
-    # df[col2] = true_odds_col2
-
-    # Create and return a new DataFrame with the results
-    return pd.DataFrame({'col1': true_odds_col1, 'col2': true_odds_col2})
+    return true_odds.select(df.columns + ['true_' + col for col in odds_cols])
