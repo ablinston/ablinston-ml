@@ -375,7 +375,8 @@ def parallel_scrape_and_process_urls(
                             cctx = cctx)
                     else:
                         logger.error("Saving scrape results failed. Column number mistmatch: %s", url)
-                        pdb.set_trace()
+                        # pdb.set_trace()
+                        raise ValueError(f"Column number mismatch saving {url}. Got {len(combined.columns)} columns, expected {len(existing_zst.columns)}")
     
                 if pause_between_requests > 0:
                     time.sleep(pause_between_requests)

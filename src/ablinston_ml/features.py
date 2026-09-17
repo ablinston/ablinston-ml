@@ -30,7 +30,8 @@ def aggregate_stats_last_x_days(df, group_by, date_col, days, stats_cols, agg_fu
     elif agg_func == 'sum':
         aggs = [pl.col(stats_cols).sum()]
     else:
-        pdb.set_trace()
+        # pdb.set_trace()
+        raise ValueError(f"agg_func must be 'mean' or 'sum', got {agg_func}")
 
     # Now compute the new column
     new_df = (
@@ -60,7 +61,7 @@ def aggregate_stats_last_x_days(df, group_by, date_col, days, stats_cols, agg_fu
     if df.select(group_by + [date_col]).equals(new_df.select(group_by + [date_col])):
         return pl.concat([df, new_df.select([col for col in new_df.columns if col not in df.columns])], how = 'horizontal')
     else:
-        pdb.set_trace()
+        # pdb.set_trace()
         return df.join(
             new_df.select(group_by + [date_col] + [col for col in new_df.columns if 'hist' in col]), 
             on = group_by + [date_col], 

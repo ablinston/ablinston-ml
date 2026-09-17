@@ -94,11 +94,9 @@ invites shadowing, which is how you end up with a local `mlflow.py` quietly beat
 
 Being honest about what is not finished:
 
-- Some functions drop into `pdb` on unexpected input. That suits how I work interactively but it
-  is wrong in a library, where it hangs whatever is calling you. They are being replaced with
-  raised exceptions.
 - A couple of iagnostics go to `print()` rather than `logging`, so the caller has no say in where they go.
-- Tests cover two functions in `features.py`, the ones where the maths was fiddly enough to be
+- Tests cover three functions in `features.py`, the ones where the maths was fiddly enough to be
   worth pinning down. The rest are untested.
-- Every version floor comes from the environment I actually run this in, apart from `evidently`,
-  which has no floor because I have not checked which version I last used it with.
+- Every version floor comes from the environment I actually run this in. `evidently` is the odd one
+  out and has a ceiling instead, `<0.7`, because `monitoring.py` still imports the older
+  `evidently.report` and `evidently.metric_preset` layout that 0.7 moved away from.

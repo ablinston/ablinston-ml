@@ -60,7 +60,8 @@ def append_to_zst(
 
 	# Do a final check that the columns are correct
 	if data.columns.to_list() != force_column_schema:
-		pdb.set_trace()
+		# pdb.set_trace()
+		raise ValueError(f"Columns to be appended to {save_path} do not match the forced schema. Got {data.columns.to_list()}, expected {force_column_schema}")
 
 	# Convert to csv without header
 	# if polars:

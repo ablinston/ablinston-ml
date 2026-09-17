@@ -33,7 +33,7 @@ modelling = [
     "xgboost>=2.1.4",
 ]
 monitoring = [
-    "evidently",
+    "evidently<0.7",
     "whylogs>=1.6",
 ]
 scraping = [
