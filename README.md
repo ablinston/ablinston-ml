@@ -29,7 +29,7 @@ end up installing a browser driver:
 
 - `modelling` xgboost, scikit-learn, scipy, hyperopt, mlflow, shap, matplotlib and seaborn
 - `monitoring` evidently and whylogs
-- `scraping` beautifulsoup4, requests and undetected-chromedriver
+- `scraping` beautifulsoup4, curl-cffi and seleniumbase
 - `betfair` betfairlightweight and orjson
 
 Ask for them by name:
@@ -41,12 +41,17 @@ They stack, so `[modelling,scraping]` works, and `[all]` pulls in every group.
 Nothing warns you at install time if you skip one. The module fails to import when you first
 reach for it, the same way pandas behaves if you read a parquet file without pyarrow.
 
+The slow scrape drives a real Chrome over the devtools protocol, so there is no chromedriver to
+install and nothing that breaks when Chrome updates itself. It does need Chrome on the machine.
+Clicking a captcha moves the actual mouse, so on Linux that wants xvfb installed, and the browser
+is started inside a virtual display when it is not headless.
+
 ## What is in it
 
 - `features.py` rolling and time decayed aggregates by group and date, and converting bookmaker
   odds into true probabilities
 - `data.py` reading and appending compressed zstd files, which is how I store anything large
-- `scraping.py` fetching pages with requests, falling back to a real browser when a site blocks
+- `scraping.py` fetching pages with curl-cffi, falling back to a real browser when a site blocks
   that, plus running scrapes in parallel
 - `betfair.py` turning Betfair historic stream files into dataframes
 - `experiments.py` mlflow run lookups, hyperopt trial persistence, SHAP feature importance and
