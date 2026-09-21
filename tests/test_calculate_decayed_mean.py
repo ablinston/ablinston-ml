@@ -1,11 +1,11 @@
-from data_tools.feature_engineering import calculate_decayed_mean
+from ablinston_ml.features import calculate_decayed_mean
 import polars as pl
 
-def test_calculate_decayed_mean():
+def test_calculate_decayed_mean(data_path):
 
     # Read in the data
-    input_df = pl.read_parquet('X:/Repos/custom_tools/tests/data/test_calculate_decayed_mean_input.parquet')
-    correct = pl.read_parquet('X:/Repos/custom_tools/tests/data/test_calculate_decayed_mean_output.parquet')
+    input_df = pl.read_parquet(data_path / 'test_calculate_decayed_mean_input.parquet')
+    correct = pl.read_parquet(data_path / 'test_calculate_decayed_mean_output.parquet')
     
     result = calculate_decayed_mean(
         input_df, 
@@ -18,8 +18,3 @@ def test_calculate_decayed_mean():
         shift = 1).drop('points')
     
     assert correct.equals(result)
-
-
-
-# fp.write('X:/Repos/custom_tools/tests/data/test_calculate_decayed_mean_input.parquet', input_df.to_pandas(), compression = 'ZSTD')
-# fp.write('X:/Repos/custom_tools/tests/data/test_calculate_decayed_mean_output.parquet', result.to_pandas(), compression = 'ZSTD')
