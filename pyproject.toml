@@ -23,7 +23,7 @@ Repository = "https://github.com/ablinston/ablinston-ml"
 
 [project.optional-dependencies]
 modelling = [
-    "hyperopt>=0.2.7",
+    "hyperopt>=0.3.0",
     "matplotlib>=3.10.5",
     "mlflow>=3.2.0",
     "scikit-learn>=1.7.1",
@@ -38,8 +38,8 @@ monitoring = [
 ]
 scraping = [
     "beautifulsoup4>=4.13.5",
-    "requests>=2.32.5",
-    "undetected-chromedriver>=3.5.5",
+    "curl-cffi>=0.13.0",
+    "seleniumbase>=4.54.0",
 ]
 betfair = [
     "betfairlightweight>=2.21.1",

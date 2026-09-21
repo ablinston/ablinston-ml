@@ -1,20 +1,31 @@
-import io
+import asyncio
 import logging
 import os
 import pandas as pd
 import pdb
 import polars as pl
 import random
-import requests
+import re
 import time
-import undetected_chromedriver as uc
 import zstandard as zstd
 from bs4 import BeautifulSoup
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from curl_cffi import requests as curl_requests
+from seleniumbase import sb_cdp
+from seleniumbase.core import nest_asyncio
 
 from .data import append_to_zst, read_zst_pl
 
 logger = logging.getLogger(__name__)
+
+# Wording used by holding pages that sit in front of the real page while it checks you are human
+holding_page_text = [
+    'Checking your browser',
+    'Just a moment',
+    'Verifying you are human',
+    'Enable JavaScript and cookies to continue',
+    'This site requires [Jj]ava[Ss]cript'
+]
 
 # This function gets a random user agent
 
@@ -75,71 +86,102 @@ def random_user_agent():
     return random.choice(user_agents)
 
 
+# This function starts a browser that sites find hard to spot as automated, and opens a page in it
+
+def start_browser(
+        url = None,
+        chrome_binary = '',
+        headless = True
+    ):
+
+    # Jupyter already runs an event loop in the thread, and CDP mode needs to run one of its
+    # own, so let them nest. Only worth doing when there is a loop to nest inside
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        pass
+    else:
+        nest_asyncio.apply()
+
+    # SeleniumBase's CDP mode drives Chrome over the devtools protocol rather than through a
+    # chromedriver, so there is no driver to install and nothing to keep in step with Chrome.
+    # A window on Linux needs a virtual display for the captcha click to land in the right place
+    browser = sb_cdp.Chrome(
+        url,
+        headless = headless,
+        browser_executable_path = chrome_binary if chrome_binary else None,
+        sandbox = False, # Chrome refuses to start with the sandbox on when running as root
+        # Some of the sites I scrape are http only, and Chrome quietly upgrades the
+        # url to https, which then fails with nothing useful in the error
+        browser_args = ['--disable-features=HttpsUpgrades,HttpsFirstBalancedMode'],
+        xvfb = not headless and os.name != 'nt')
+
+    return browser
+
+
+# This function clears the "verify you are human" checkbox that Cloudflare and similar put up
+
+def clear_captcha(browser, wait = 30):
+
+    # The click is done with the mouse so it needs a screen. Where there isn't one,
+    # wait instead and let it be clicked by hand
+    try:
+        browser.gui_click_captcha()
+    except Exception:
+        logger.warning("Could not click the captcha, waiting %s seconds for it to be done by hand", wait)
+        time.sleep(wait)
+
+
 def get_website_soup(
-        url, 
+        url,
         fast,
         playwright_context = None,
         cookies = {}, # Only needed for fast
-        firefox_binary = '', # Only needed for NOT fast
-        gecko_driver = '', # Only needed for NOT fast):
-        chrome_driver = '',
+        impersonate = 'chrome', # Browser whose fingerprint curl_cffi copies. Only needed for fast
+        referer = 'https://www.google.com/', # Page to say we arrived from. Only needed for fast
         chrome_binary = '',
-        chrome_version_main = None, # Major Chrome version to match against when fetching a chromedriver
-        driver = None, # Pass in a driver if want to use it to search the site
-        time_delay = True # whether to add a time pause after the driver loads the url
+        browser = None, # Pass in a browser if want to use it to search the site
+        captcha = False, # Whether the page puts up a bot check. Runs the browser in a window so it can be clicked
+        captcha_wait = 30, # Seconds to leave the page open for the captcha to be done by hand
+        time_delay = True # whether to add a time pause after the browser loads the url
     ):
-    
+
     # pdb.set_trace()
 
     soup = None
 
-    # Save whether we passed a driver
-    if driver is not None:
-        driver_passed = True
+    # Save whether we passed a browser
+    if browser is not None:
+        browser_passed = True
     else:
-        driver_passed = False
+        browser_passed = False
 
     if fast == True:
 
-        # Use random headers each time
-        headers = {'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Encoding':'gzip, deflate, br, zstd',
-            'Accept-Language':'en-US,en;q=0.5',
-            'Connection':'keep-alive',
-        #    'Host':'www.bestfightodds.com',
-            'Priority':'u=0, i',
-            'Referer': 'https://www.google.com/',
-        #    'Sec-Fetch-Dest':'document',
-        #    'Sec-Fetch-Mode':'navigate',
-        #    'Sec-Fetch-Site':'same-origin',
-        #    'Upgrade-Insecure-Requests':'1',
-            'User-Agent': random_user_agent()}
-        
-        response = requests.get(url, headers=headers, cookies=cookies)
-        
+        # curl_cffi copies the TLS handshake and the header order of a real browser, so the only
+        # header worth setting by hand is the referer. The rest have to match the browser being
+        # impersonated, and curl_cffi fills those in itself
+        headers = {'Referer': referer}
+
+        response = curl_requests.get(url, headers = headers, cookies = cookies, impersonate = impersonate)
+
         # Check if been blocked by anti bot pretection
         if response.status_code in [403, 429]:
-            # print("Blocked! Try changing User-Agent, IP, or waiting.")
-            # print(f"Using user agent: {headers['User-Agent']}")
-            
+            # print("Blocked! Try changing the impersonate target, IP, or waiting.")
+
             # Change to a slow
             fast = False
-        
+
         else:
-            # Check if the response is compressed
-            if response.headers.get("Content-Encoding") == 'zstd':
-                # Sometimes it says zstd compressed but isn't so try and except
-                try:
-                    dctx = zstd.ZstdDecompressor()
-                    stream = dctx.stream_reader(io.BytesIO(response.content))
-                    text = stream.read().decode("utf-8")
-                except Exception:
-                    text = response.text
-            else:
-                text = response.text
-        
-            soup = BeautifulSoup(text, 'html.parser')
-        
+            # curl_cffi decompresses gzip, brotli and zstd itself
+            soup = BeautifulSoup(response.text, 'html.parser')
+
+            # Some sites hand back a holding page with a 200 rather than an error code, so
+            # look for the wording those use and fall back to the browser as well
+            if soup.find(string = re.compile('|'.join(holding_page_text))) is not None:
+                soup = None
+                fast = False
+
     # Else, if we have a playwright context, we use that
     elif playwright_context is not None:
                 
@@ -150,60 +192,55 @@ def get_website_soup(
         soup = BeautifulSoup(page.content(), 'html.parser')
         page.close()
         
-    # Otherwise, use selenium, which is the slowest
+    # Otherwise, use a real browser, which is the slowest
     if fast == False and playwright_context is None:
-        
-        # ###########
-        # # Setup headless Firefox for getting odds information
-        # options = Options()
-        # options.headless = True
-        # options.accept_insecure_certs = True
-        # # Create a Service object with the path to Firefox driver
-        # options.binary_location = firefox_binary # firefox_binary
-        # service = Service(gecko_driver)
-        # # Create a WebDriver instance
-        # driver = webdriver.Firefox(service=service, options=options)
-        # ###########
+
         # pdb.set_trace()
-        options = uc.ChromeOptions()
-        options.add_argument("--disable-blink-features=AutomationControlled")
-        options.add_argument("--headless=new")
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        options.add_argument("--disable-gpu")
-        options.add_argument("--start-maximized")
-        
-        if driver is None:
-            if chrome_driver == '':
+        if browser is None:
+            # A captcha has to be clicked, so that needs a window rather than a headless browser
+            browser = start_browser(url, chrome_binary = chrome_binary, headless = not captcha)
+        else:
+            browser.open(url)
 
-                if chrome_binary != '':
-                    options.binary_location = chrome_binary
-                driver = uc.Chrome(options = options, headless = False, use_subprocess = True, version_main = chrome_version_main)
-            else:
-                driver = uc.Chrome(options = options, headless = False, driver_executable_path = chrome_driver, version_main = chrome_version_main)
-                
-        # Use selenium to navigate to the page
-        driver.get(url)
+        # Clear the bot check if the site puts one up
+        if captcha:
+            clear_captcha(browser, wait = captcha_wait)
 
-        # Allow 20s to solve a captcha if needed
+        # Give the page time to finish loading
         if time_delay:
             time.sleep(5)
-        
+
         # Option 1: Check the page title
-        if "429" in driver.title:
+        if "429" in browser.get_title():
             logger.warning("Rate limited!")
-            if not driver_passed:
-                driver.quit()
+            if not browser_passed:
+                browser.stop()
 
             return ""
-        
+
         else:
             # Extract the page source
-            soup = BeautifulSoup(driver.page_source, 'html.parser')
-            
-            if not driver_passed:
-                driver.quit()
-        
+            soup = BeautifulSoup(browser.get_page_source(), 'html.parser')
+
+            # start_browser turns off the automatic https upgrade, so this is here to
+            # catch it creeping back in, or a browser passed in that was started
+            # without the flag
+            final_url = browser.get_current_url()
+
+            if not browser_passed:
+                browser.stop()
+
+            if url.startswith('http://') and final_url.startswith('https://'):
+                raise ConnectionError(f"Chrome upgraded {url} to https, which the site does not serve")
+
+            # Chrome serves its own error page when it can't reach the site. That
+            # parses like any other page, so without this the failure turns up much
+            # further down as missing tables
+            if soup.find(id = 'main-frame-error') is not None:
+                error_code = soup.find(class_ = 'error-code')
+                code = error_code.get_text(strip = True) if error_code else 'no error code'
+                raise ConnectionError(f"Browser could not load {url}: {code}")
+
     return soup
 
 
@@ -211,8 +248,8 @@ def parallel_scrape_and_process_urls(
         url_list,
         func,
         fast,
-        num_threads, 
-        chrome_driver = '',
+        num_threads,
+        chrome_binary = '',
         concat_results = False,
         add_source_url = True,
         pause_for_captcha = False,
@@ -232,8 +269,8 @@ def parallel_scrape_and_process_urls(
         and returns a polars data frame.
     num_threads : int
         Number of parallel threads.
-    chrome_driver : str
-        Path to chromedriver. Leave blank to use default driver.
+    chrome_binary : str
+        Path to the Chrome binary. Leave blank to use whichever Chrome is found.
     **kwargs : dict
         Additional keyword arguments to pass to both get_website_soup and func.
 
@@ -273,39 +310,27 @@ def parallel_scrape_and_process_urls(
         
     # pdb.set_trace()
     
-    options = uc.ChromeOptions()
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    # options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--start-maximized")
-    
-    if chrome_driver == '':
-        driver = uc.Chrome(options = options, headless = False)
-    else:
-        driver = uc.Chrome(options = options, headless = False, driver_executable_path = chrome_driver)
-    
-    # Get the cookies for first page with a Selenium call
-    driver.get(url_list[0])
+    # Get the cookies for first page with a browser call. Run in a window rather than
+    # headless so a captcha can be cleared
+    browser = start_browser(url_list[0], chrome_binary = chrome_binary, headless = False)
 
-    # Give a delay to allow the checkbox to be manually done
+    # Clear the checkbox, falling back to it being done by hand
     if pause_for_captcha:
-        time.sleep(20)
+        clear_captcha(browser)
 
-    # Get cookies from driver
-    cookies = driver.get_cookies()
-    cookies_dict = {cookie['name']: cookie['value'] for cookie in cookies}
+    # Get cookies from the browser
+    cookies = browser.get_all_cookies()
+    cookies_dict = {cookie.name: cookie.value for cookie in cookies}
 
     # Quit the browser unless we are going through one at a time
     if num_threads > 1:
-        driver.quit()
+        browser.stop()
 
     # Check if we want to use more than 1 thread
     if num_threads > 1:
 
         with ThreadPoolExecutor(max_workers = num_threads) as executor:
-            future_to_url = {executor.submit(get_website_soup, url, fast = fast, cookies = cookies_dict, chrome_driver = chrome_driver): url for url in url_list}
+            future_to_url = {executor.submit(get_website_soup, url, fast = fast, cookies = cookies_dict, chrome_binary = chrome_binary): url for url in url_list}
 
             # Collect results as they complete
             for future in as_completed(future_to_url):
@@ -340,7 +365,7 @@ def parallel_scrape_and_process_urls(
 
             try:
                 # Get the soup
-                soup = get_website_soup(url, fast = fast, cookies = cookies_dict, driver = driver)
+                soup = get_website_soup(url, fast = fast, cookies = cookies_dict, browser = browser)
                 
                 # Run it through the function
                 result = func(soup, **kwargs)
@@ -390,7 +415,7 @@ def parallel_scrape_and_process_urls(
             except:
                 logger.error("Failed to scrape: %s", url, exc_info = True)
 
-        driver.quit()
+        browser.stop()
     
     if concat_results:
         if len(scrape_results) == 0:
